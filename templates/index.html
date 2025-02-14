@@ -2,26 +2,50 @@
 <html>
 <head>
     <meta charset="utf-8"/>
-    <title>Markdown to Word/PDF/Image</title>
-    <!-- 引用自定义样式 -->
+    <title>Markdown 转换工具</title>
+    <!-- 引入 html2canvas 用于前端截图 -->
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        window.MathJax = {
+          tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            processEscapes: true
+          },
+          svg: { 
+            fontCache: 'global',
+            scale: 0.9  // 调整公式显示比例
+          }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"></script>
 </head>
 <body>
-    <h1>Markdown 转换示例</h1>
-    <textarea id="markdown_input" style="width: 80%; height: 200px;"></textarea>
-    <br>
-    <button id="preview_btn">预览</button>
-    <button id="export_docx_btn">导出 DOCX</button>
-    <button id="export_pdf_btn">导出 PDF</button>
-    <button id="export_image_btn">导出 PNG</button>
+    <div class="container">
+        <header class="header">
+            <h1>Markdown 转换工具</h1>
+            <div class="controls">
+                <button class="btn primary" id="preview_btn">实时预览</button>
+                <div class="export-btns">
+                    <button class="btn success" id="export_docx_btn">导出 Word</button>
+                    <button class="btn warning" id="export_pdf_btn">导出 PDF</button>
+                    <button class="btn danger" id="export_image_btn">截图导出</button>
+                </div>
+            </div>
+        </header>
 
-    <hr>
-    <h2>预览区</h2>
-    <div id="preview_area" style="border:1px solid #ccc; padding:10px; min-height:200px;">
-        <!-- 预览结果显示在这里 -->
+        <div class="editor-container">
+            <textarea id="markdown_input" placeholder="在此粘贴您的 Markdown 内容..."></textarea>
+            <div class="preview-area">
+                <div class="preview-header">
+                    <h3>预览效果</h3>
+                    <small>（实时更新）</small>
+                </div>
+                <div id="preview_content"></div>
+            </div>
+        </div>
     </div>
 
-    <!-- 引用前端脚本 -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

@@ -10,6 +10,9 @@ from flask import Flask, render_template, request, send_file, make_response, jso
 import markdown  # 用于预览时把 markdown 转为 HTML
 import pypandoc  # 用于导出 docx/pdf
 
+# 需要安装 pygments 以启用 codehilite
+# pip install pygments
+
 # 尝试导入 WeasyPrint，如果依赖库缺失，给出标志
 try:
     from weasyprint import HTML
@@ -26,6 +29,7 @@ def index():
     """
     return render_template('index.html')
 
+
 def generate_mermaid_image(mermaid_code: str) -> str:
     """
     调用 mermaid-cli, 将 mermaid_code 生成 PNG 并返回 base64 字符串
@@ -39,7 +43,6 @@ def generate_mermaid_image(mermaid_code: str) -> str:
     png_path = mmd_path.replace(".mmd", ".png")
 
     # 调用命令行 "mmdc -i xxx.mmd -o xxx.png"
-    # 如果系统没安装 mermaid-cli，此处会报错，可再做额外try-except
     cmd = ["mmdc", "-i", mmd_path, "-o", png_path]
     subprocess.run(cmd, check=True)
 
@@ -59,7 +62,9 @@ def generate_mermaid_image(mermaid_code: str) -> str:
 def preview():
     """
     接收 Markdown 文本，先将 mermaid/flowchart/sequence 的代码块转为内嵌 Base64 图像，
-    再用 Python-Markdown 转为 HTML 返回给前端展示。
+    然后用 Python-Markdown 转为 HTML 返回给前端展示。
+    
+    同时开启 codehilite 以便显示带有背景色的代码块。
     """
     md_text = request.form.get('markdown_input', '')
 
@@ -71,15 +76,30 @@ def preview():
         # 调用 mermaid-cli 生成图
         try:
             b64 = generate_mermaid_image(mermaid_code)
-            return f'![](data:image/png;base64,{b64})'
+            return f'\n![](data:image/png;base64,{b64})\n'  # 添加换行确保结构
         except Exception as e:
             # 如果生成图出错，则用提示替换
-            return f"**[Mermaid Error: {str(e)}]**"
+            return f"\n**[Mermaid Error: {str(e)}]**\n"
 
     replaced_md = re.sub(pattern, repl, md_text, flags=re.DOTALL)
 
-    # 转为 HTML
-    html = markdown.markdown(replaced_md, extensions=['fenced_code', 'tables'])
+    # 用 markdown 库进行转 HTML
+    html = markdown.markdown(
+        replaced_md,
+        extensions=[
+            'fenced_code',
+            'codehilite',    # 启用代码高亮
+            'tables',
+            'nl2br'          # 可选：将换行转为 <br>
+        ],
+        extension_configs={
+            'codehilite': {
+                'linenums': False,      # 禁用行号
+                'guess_lang': False,    # 禁用语言猜测
+            }
+        }
+    )
+
     return html
 
 
@@ -97,13 +117,20 @@ def export():
         f_in.write(md_text.encode('utf-8'))
         md_path = f_in.name
 
+    # 拼出输出文件名
     output_file = md_path + "." + export_type
 
-    # 需要传给 Pandoc 的额外参数，如加载 mermaid_filter.lua (如果有的话)
-    # 同时指定 --pdf-engine=xelatex，支持中文等 Unicode
-    extra_args = [
+    # 需要传给 Pandoc 的额外参数
+    extra_args_for_pdf = [
         "--lua-filter=mermaid_filter.lua",
-        "--pdf-engine=xelatex"  # 只有在生成pdf时生效
+        "--pdf-engine=xelatex",
+        "-V", "mainfont=Noto Sans CJK SC",
+        "--highlight-style=pygments"
+    ]
+    extra_args_for_docx = [
+        "--lua-filter=mermaid_filter.lua",
+        "--highlight-style=pygments",
+        "--reference-doc=reference.docx"  # 添加 Word 样式模板
     ]
 
     try:
@@ -113,7 +140,7 @@ def export():
                 md_path,
                 'docx',
                 outputfile=output_file,
-                extra_args=["--lua-filter=mermaid_filter.lua"]  # docx不需要pdf-engine
+                extra_args=extra_args_for_docx
             )
             resp = make_response(
                 send_file(output_file, as_attachment=True, download_name="output.docx")
@@ -121,12 +148,12 @@ def export():
             resp.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
         elif export_type == 'pdf':
-            # 转为 pdf（需要系统有 Pandoc + LaTeX + xelatex）
+            # 转为 pdf
             pypandoc.convert_file(
                 md_path,
                 'pdf',
                 outputfile=output_file,
-                extra_args=extra_args
+                extra_args=extra_args_for_pdf
             )
             resp = make_response(
                 send_file(output_file, as_attachment=True, download_name="output.pdf")
@@ -134,14 +161,20 @@ def export():
             resp.headers['Content-Type'] = 'application/pdf'
 
         elif export_type == 'image':
-            # 转为 HTML 再用 WeasyPrint 生成为 PNG
+            # 转为 HTML 再用 WeasyPrint 生成 PNG
             if not WEASYPRINT_AVAILABLE:
                 os.remove(md_path)
                 return ("WeasyPrint 未安装或缺少依赖，无法导出图片。"
                         "请在 Linux 上安装 cairo、pango、gobject 等依赖后重试。"), 500
 
-            html_str = pypandoc.convert_file(md_path, 'html', extra_args=extra_args)
-            HTML(string=html_str).write_png(output_file)
+            # 1) 用 pypandoc 转为 HTML
+            html_str = pypandoc.convert_file(
+                md_path,
+                'html',
+                extra_args=extra_args_for_pdf
+            )
+            # 2) 用 WeasyPrint 直接生成 PNG
+            HTML(string=html_str).write_png(output_file)  # 修复图片生成方法
 
             resp = make_response(
                 send_file(output_file, as_attachment=True, download_name="output.png")
@@ -165,4 +198,4 @@ def export():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
