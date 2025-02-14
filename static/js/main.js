@@ -117,7 +117,6 @@ function getExtension(fileType) {
     return 'dat';
 }
 
-// 改进的复制按钮功能
 function addCopyButtons() {
     const codeBlocks = document.querySelectorAll('pre code');
     
