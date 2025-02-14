@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Markdown to Word/PDF/Image</title>
+    <!-- 引用自定义样式 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Markdown 转换示例</h1>
+    <textarea id="markdown_input" style="width: 80%; height: 200px;"></textarea>
+    <br>
+    <button id="preview_btn">预览</button>
+    <button id="export_docx_btn">导出 DOCX</button>
+    <button id="export_pdf_btn">导出 PDF</button>
+    <button id="export_image_btn">导出 PNG</button>
+
+    <hr>
+    <h2>预览区</h2>
+    <div id="preview_area" style="border:1px solid #ccc; padding:10px; min-height:200px;">
+        <!-- 预览结果显示在这里 -->
+    </div>
+
+    <!-- 引用前端脚本 -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

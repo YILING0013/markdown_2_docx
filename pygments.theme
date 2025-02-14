@@ -1,0 +1,15 @@
+extends: pygments
+highlighting-style:
+  background-color: "#F9F9F9"   # 浅灰色背景
+  line-number-background-color: "#F9F9F9"
+style:
+  Comment:
+    color: "#999988"
+    italic: true
+  Keyword:
+    color: "#008000"
+    bold: true
+  Number:
+    color: "#008080"
+  String:
+    color: "#BA2121"
