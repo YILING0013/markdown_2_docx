@@ -89,40 +89,14 @@ async function updatePreview() {
     }
 }
 
-// 点击“导出 DOCX”按钮：/export?type=docx
+// 点击"导出 DOCX"按钮：/export?type=docx
 document.getElementById('export_docx_btn').addEventListener('click', function() {
     exportFile('docx');
 });
 
-// 点击“导出 PDF”按钮：/export?type=pdf
+// 点击"导出 PDF"按钮：/export?type=pdf
 document.getElementById('export_pdf_btn').addEventListener('click', function() {
     exportFile('pdf');
-});
-
-// 前端导出图片功能
-document.getElementById('export_image_btn').addEventListener('click', async () => {
-    try {
-        // 等待数学公式渲染完成
-        if (window.MathJax) {
-            await MathJax.typesetPromise();
-        }
-    
-        // 使用 html2canvas 截图
-        html2canvas(previewContent, {
-            scale: 2, // 提高截图质量
-            useCORS: true, // 允许跨域资源
-            logging: true,
-            backgroundColor: '#ffffff'
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = 'preview-screenshot.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        });
-    } catch (err) {
-        console.error(err);
-        showErrorPopup('图片导出失败：' + err.message);
-    }
 });
 
 // 通用的导出函数
@@ -192,25 +166,65 @@ function addCopyButtons() {
 }
 
 // 支持开发者下拉菜单
-const sponsorDropdown = document.querySelector('.with-dropdown');
+const sponsorBtn = document.querySelector('.sponsor-btn');
 const sponsorMainBtn = document.querySelector('.sponsor-main-btn');
+const sponsorMenu = document.querySelector('.sponsor-btn .dropdown-menu');
 
 // 点击按钮切换菜单
 sponsorMainBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    sponsorDropdown.classList.toggle('active');
+    sponsorBtn.classList.toggle('active');
+    
+    // 关闭友情链接菜单
+    const friendLinks = document.querySelector('.friend-links');
+    if (friendLinks.classList.contains('active')) {
+        friendLinks.classList.remove('active');
+    }
 });
 
-// 点击外部关闭菜单
+// 友情链接下拉菜单
+const friendLinks = document.querySelector('.friend-links');
+const friendLinksBtn = document.querySelector('.friend-links-btn');
+
+friendLinksBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    friendLinks.classList.toggle('active');
+    
+    // 关闭支持开发者菜单
+    if (sponsorBtn.classList.contains('active')) {
+        sponsorBtn.classList.remove('active');
+    }
+});
+
+// 点击外部关闭所有菜单
 document.addEventListener('click', (e) => {
-    if (!sponsorDropdown.contains(e.target)) {
-        sponsorDropdown.classList.remove('active');
+    if (!sponsorBtn.contains(e.target)) {
+        sponsorBtn.classList.remove('active');
+    }
+    if (!friendLinks.contains(e.target)) {
+        friendLinks.classList.remove('active');
     }
 });
 
 // 菜单项点击处理
 document.querySelectorAll('.menu-item').forEach(item => {
     item.addEventListener('click', () => {
-        sponsorDropdown.classList.remove('active');
+        sponsorBtn.classList.remove('active');
+        friendLinks.classList.remove('active');
     });
+});
+
+// 初始化友情链接状态
+document.addEventListener('DOMContentLoaded', () => {
+    const storedState = localStorage.getItem('friendLinksExpanded');
+    const isFirstVisit = localStorage.getItem('firstVisit') === null;
+
+    // 首次访问自动展开
+    if (isFirstVisit) {
+        friendLinks.classList.add('active');
+        localStorage.setItem('friendLinksExpanded', 'true');
+        localStorage.setItem('firstVisit', 'false');
+    } else {
+        if (storedState === 'true') friendLinks.classList.add('active');
+    }
 });

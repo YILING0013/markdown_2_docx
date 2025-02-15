@@ -108,7 +108,6 @@ def export():
     # 替换 \[1mm] => \vspace{1mm}
     md_text = re.sub(r'\\\[1mm\]', r'\\vspace{1mm}', md_text)
 
-    # 同样为 \[...\] 公式加空行
     md_text = re.sub(r'([^\n])(\s*)\\\[(.*?)\\\]([^\n])',
                      r'\1\n\n\\[\3\\]\n\n\4', md_text, flags=re.DOTALL)
     md_text = re.sub(r'^(\s*)\\\[(.*?)\\\](\s*)(?=\n|$)',
