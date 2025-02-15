@@ -10,8 +10,8 @@ from flask import Flask, render_template, request, send_file, make_response, jso
 import markdown  # 用于预览时把 markdown 转为 HTML
 import pypandoc  # 用于导出 docx/pdf
 
-# 需要安装 pygments 以启用 codehilite
-# pip install pygments
+# 需要安装的依赖：
+# pip install pygments pymdown-extensions
 
 # 尝试导入 WeasyPrint，如果依赖库缺失，给出标志
 try:
@@ -90,12 +90,17 @@ def preview():
             'fenced_code',
             'codehilite',    # 启用代码高亮
             'tables',
-            'nl2br'          # 可选：将换行转为 <br>
+            'nl2br',
+            'pymdownx.arithmatex' # 支持数学公式
         ],
         extension_configs={
             'codehilite': {
                 'linenums': False,      # 禁用行号
                 'guess_lang': False,    # 禁用语言猜测
+            },
+            'pymdownx.arithmatex': {
+                'generic': True,
+                'preview': False
             }
         }
     )
@@ -105,37 +110,41 @@ def preview():
 
 @app.route('/export', methods=['POST'])
 def export():
-    """
-    导出接口: 接收 Markdown 文本和一个类型参数(type=docx/pdf/image)，
-    再调用 Pandoc/WeasyPrint 等转换并把生成文件作为下载返回。
-    """
     md_text = request.form.get('markdown_input', '')
-    export_type = request.args.get('type', 'docx')  # 默认为 docx
+    export_type = request.args.get('type', 'docx')
 
-    # 先将输入写入一个临时文件
+    # 处理数学公式的特殊情况：保留原始LaTeX格式
+    # 删除可能由预览生成的HTML标签
+    cleaned_md = re.sub(r'<span class="arithmatex">(.*?)</span>', r'\1', md_text)
+    cleaned_md = re.sub(r'\\\(', r'$', cleaned_md)  # 转换\(...\)为$...$
+    cleaned_md = re.sub(r'\\\)', r'$', cleaned_md)
+    cleaned_md = re.sub(r'\\\[', r'$$', cleaned_md)  # 转换\[...\]为$$...$$
+    cleaned_md = re.sub(r'\\\]', r'$$', cleaned_md)
+
     with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as f_in:
-        f_in.write(md_text.encode('utf-8'))
+        f_in.write(cleaned_md.encode('utf-8'))
         md_path = f_in.name
 
-    # 拼出输出文件名
     output_file = md_path + "." + export_type
 
-    # 需要传给 Pandoc 的额外参数
+    # 修改后的导出参数
     extra_args_for_pdf = [
         "--lua-filter=mermaid_filter.lua",
         "--pdf-engine=xelatex",
         "-V", "mainfont=Noto Sans CJK SC",
-        "--highlight-style=pygments"
+        "--highlight-style=pygments",
+        "--mathml"
     ]
     extra_args_for_docx = [
         "--lua-filter=mermaid_filter.lua",
         "--highlight-style=pygments",
-        "--reference-doc=reference.docx"
+        "--reference-doc=reference.docx",
+        "-f", "markdown+tex_math_dollars+tex_math_double_backslash",  # 关键修正点
+        "--mathml"
     ]
 
     try:
         if export_type == 'docx':
-            # 转为 docx
             pypandoc.convert_file(
                 md_path,
                 'docx',
