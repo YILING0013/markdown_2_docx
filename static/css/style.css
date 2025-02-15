@@ -83,7 +83,7 @@ body {
 }
 
 #markdown_input {
-    width: 100%;
+    min-width: 200px;
     /* height: 100%; */
     padding: 1rem;
     border: 2px solid #e0e0e0;
@@ -175,9 +175,167 @@ th {
     font-weight: 600;
 }
 
-/* 图片样式 */
 img {
     max-width: 100%;
     border-radius: 4px;
     margin: 1rem 0;
+}
+
+.sponsor-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: #fff;
+    border-radius: 50px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.3s;
+    z-index: 100;
+}
+
+.sponsor-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.sponsor-btn a {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    text-decoration: none;
+    color: #946ce6;
+    font-weight: 500;
+}
+
+.sponsor-btn svg {
+    margin-right: 8px;
+}
+
+.sponsor-btn span {
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .sponsor-btn {
+        bottom: 15px;
+        right: 15px;
+        font-size: 14px;
+    }
+    
+    .sponsor-btn a {
+        padding: 8px 12px;
+    }
+    
+    .sponsor-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+/* 添加移动端样式 */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+
+    .editor-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        gap: 1rem;
+    }
+
+    #markdown_input {
+        height: 300px;
+        font-size: 16px;
+    }
+
+    .preview-area {
+        min-height: 400px;
+        overflow-y: auto;
+        margin-bottom: 60px; /* 给底部按钮留空间 */
+    }
+
+    .controls {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .export-btns {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .btn {
+        width: 100%;
+        padding: 0.8rem;
+        font-size: 14px;
+    }
+
+    .header h1 {
+        font-size: 1.5rem;
+    }
+
+    /* 调整代码块样式 */
+    pre {
+        padding: 0.8rem;
+        font-size: 13px;
+    }
+
+    .copy-btn {
+        padding: 0.2rem 0.4rem;
+        font-size: 12px;
+    }
+
+    /* 表格滚动支持 */
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    /* 赞助按钮调整 */
+    .sponsor-btn {
+        bottom: 10px;
+        right: 10px;
+        font-size: 14px;
+    }
+
+    .sponsor-btn a {
+        padding: 8px 12px;
+    }
+
+    .sponsor-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+/* 超小屏幕优化 */
+@media (max-width: 480px) {
+    #markdown_input {
+        height: 250px;
+    }
+
+    .preview-area {
+        min-height: 350px;
+        overflow-y: auto;
+    }
+
+    .export-btns {
+        grid-template-columns: 1fr;
+    }
+
+    .btn {
+        padding: 0.7rem;
+        font-size: 13px;
+    }
+
+    .header h1 {
+        font-size: 1.3rem;
+    }
+
+    .preview-header h3 {
+        font-size: 1.1rem;
+    }
 }

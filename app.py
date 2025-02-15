@@ -130,7 +130,7 @@ def export():
     extra_args_for_docx = [
         "--lua-filter=mermaid_filter.lua",
         "--highlight-style=pygments",
-        "--reference-doc=reference.docx"  # 添加 Word 样式模板
+        "--reference-doc=reference.docx"
     ]
 
     try:
@@ -159,27 +159,6 @@ def export():
                 send_file(output_file, as_attachment=True, download_name="output.pdf")
             )
             resp.headers['Content-Type'] = 'application/pdf'
-
-        elif export_type == 'image':
-            # 转为 HTML 再用 WeasyPrint 生成 PNG
-            if not WEASYPRINT_AVAILABLE:
-                os.remove(md_path)
-                return ("WeasyPrint 未安装或缺少依赖，无法导出图片。"
-                        "请在 Linux 上安装 cairo、pango、gobject 等依赖后重试。"), 500
-
-            # 1) 用 pypandoc 转为 HTML
-            html_str = pypandoc.convert_file(
-                md_path,
-                'html',
-                extra_args=extra_args_for_pdf
-            )
-            # 2) 用 WeasyPrint 直接生成 PNG
-            HTML(string=html_str).write_png(output_file)  # 修复图片生成方法
-
-            resp = make_response(
-                send_file(output_file, as_attachment=True, download_name="output.png")
-            )
-            resp.headers['Content-Type'] = 'image/png'
 
         else:
             os.remove(md_path)
