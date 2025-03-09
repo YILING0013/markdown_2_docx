@@ -86,12 +86,14 @@ python convert_md_to_docx.py input.md output.docx
 
 使用示例：
 
+```
 ```mermaid
 graph TD
     A[开始] --> B{判断}
     B -->|是| C[处理]
     B -->|否| D[结束]
 ```
+
 
 ## 问题排查
 
