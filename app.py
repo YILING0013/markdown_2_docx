@@ -4,13 +4,16 @@ import base64
 import subprocess
 import tempfile
 import uuid
+import requests
+import atexit
+import shutil
 
 from flask import Flask, render_template, request, send_file, make_response, jsonify
 import markdown  # 用于预览时把 markdown 转为 HTML
 import pypandoc  # 用于导出 docx/pdf
 
 # 需要安装的依赖：
-# pip install pygments pymdown-extensions
+# pip install pygments pymdown-extensions requests
 
 try:
     from weasyprint import HTML
@@ -19,6 +22,62 @@ except ImportError:
     WEASYPRINT_AVAILABLE = False
 
 app = Flask(__name__)
+
+# Cloudflare Turnstile 配置
+TURNSTILE_SECRET_KEY = '0x4AAAAAAXXXXXXXXXXXXXXXXXXXXXXXXX'
+TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
+
+# 临时文件跟踪
+temp_files = set()
+temp_dirs = set()
+
+def cleanup_temp_files():
+    """清理所有临时文件和目录"""
+    for file_path in list(temp_files):
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            temp_files.discard(file_path)
+        except Exception as e:
+            print(f"清理临时文件失败 {file_path}: {e}")
+    
+    for dir_path in list(temp_dirs):
+        try:
+            if os.path.exists(dir_path):
+                shutil.rmtree(dir_path)
+            temp_dirs.discard(dir_path)
+        except Exception as e:
+            print(f"清理临时目录失败 {dir_path}: {e}")
+
+# 注册退出时清理
+atexit.register(cleanup_temp_files)
+
+def verify_turnstile(token, remote_ip=None):
+    """
+    验证 Cloudflare Turnstile token
+    """
+    if not token:
+        return False, "缺少验证令牌"
+    
+    data = {
+        'secret': TURNSTILE_SECRET_KEY,
+        'response': token
+    }
+    
+    if remote_ip:
+        data['remoteip'] = remote_ip
+    
+    try:
+        response = requests.post(TURNSTILE_VERIFY_URL, data=data, timeout=10)
+        result = response.json()
+        
+        if result.get('success'):
+            return True, "验证成功"
+        else:
+            error_codes = result.get('error-codes', [])
+            return False, f"验证失败: {', '.join(error_codes)}"
+    except Exception as e:
+        return False, f"验证请求失败: {str(e)}"
 
 @app.route('/')
 def index():
@@ -31,22 +90,37 @@ def generate_mermaid_image(mermaid_code: str) -> str:
     """
     调用 mermaid-cli，将 mermaid_code 生成 PNG，并返回 base64 字符串。
     """
-    with tempfile.NamedTemporaryFile(suffix=".mmd", delete=False) as f_in:
-        f_in.write(mermaid_code.encode('utf-8'))
-        mmd_path = f_in.name
-
+    # 创建临时目录
+    temp_dir = tempfile.mkdtemp()
+    temp_dirs.add(temp_dir)
+    
+    mmd_path = os.path.join(temp_dir, f"{uuid.uuid4()}.mmd")
     png_path = mmd_path.replace(".mmd", ".png")
+    
+    try:
+        with open(mmd_path, 'w', encoding='utf-8') as f:
+            f.write(mermaid_code)
+        
+        temp_files.add(mmd_path)
+        temp_files.add(png_path)
 
-    cmd = ["mmdc", "-i", mmd_path, "-o", png_path]
-    subprocess.run(cmd, check=True)
+        cmd = ["mmdc", "-i", mmd_path, "-o", png_path]
+        subprocess.run(cmd, check=True, timeout=30)
 
-    with open(png_path, 'rb') as f:
-        data = f.read()
+        with open(png_path, 'rb') as f:
+            data = f.read()
 
-    os.remove(mmd_path)
-    os.remove(png_path)
-
-    return base64.b64encode(data).decode('utf-8')
+        return base64.b64encode(data).decode('utf-8')
+    
+    finally:
+        # 立即清理这些临时文件
+        for file_path in [mmd_path, png_path]:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                temp_files.discard(file_path)
+            except:
+                pass
 
 @app.route('/preview', methods=['POST'])
 def preview():
@@ -100,10 +174,26 @@ def preview():
 @app.route('/export', methods=['POST'])
 def export():
     """
-    导出文件为 docx 或 pdf。
+    导出文件为 docx，需要 Turnstile 验证。
     """
-    md_text = request.form.get('markdown_input', '')
     export_type = request.args.get('type', 'docx')
+    
+    # 只有 docx 需要验证
+    if export_type == 'docx':
+        # 获取 Turnstile token
+        turnstile_token = request.form.get('cf_turnstile_response')
+        
+        # 验证 Turnstile
+        remote_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        success, message = verify_turnstile(turnstile_token, remote_ip)
+        
+        if not success:
+            return jsonify({"error": f"安全验证失败: {message}"}), 403
+    
+    md_text = request.form.get('markdown_input', '')
+    
+    if not md_text.strip():
+        return jsonify({"error": "Markdown内容不能为空"}), 400
 
     # 替换 \[1mm] => \vspace{1mm}
     md_text = re.sub(r'\\\[1mm\]', r'\\vspace{1mm}', md_text)
@@ -123,64 +213,81 @@ def export():
     cleaned_md = re.sub(r'\\\[', r'$$', cleaned_md)
     cleaned_md = re.sub(r'\\\]', r'$$', cleaned_md)
 
-    with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as f_in:
-        f_in.write(cleaned_md.encode('utf-8'))
-        md_path = f_in.name
-
-    output_file = md_path + "." + export_type
-
-    # 增加 +raw_tex+tex_math_double_backslash
-    # 移除 --mathml，减少对LaTeX命令的干扰
-    extra_args_for_pdf = [
-        "--lua-filter=mermaid_filter.lua",
-        "--pdf-engine=xelatex",
-        "-V", "mainfont=Noto Sans CJK SC",
-        "--highlight-style=pygments",
-        "-f", "markdown+raw_tex+tex_math_dollars+tex_math_double_backslash"
-    ]
-    extra_args_for_docx = [
-        "--lua-filter=mermaid_filter.lua",
-        "--highlight-style=pygments",
-        "--reference-doc=reference.docx",
-        "-f", "markdown+raw_tex+tex_math_dollars+tex_math_double_backslash"
-    ]
+    # 创建临时目录
+    temp_dir = tempfile.mkdtemp()
+    temp_dirs.add(temp_dir)
+    
+    md_path = os.path.join(temp_dir, f"{uuid.uuid4()}.md")
+    output_file = os.path.join(temp_dir, f"output_{uuid.uuid4()}.{export_type}")
+    
+    temp_files.add(md_path)
+    temp_files.add(output_file)
 
     try:
+        with open(md_path, 'w', encoding='utf-8') as f:
+            f.write(cleaned_md)
+
+        # 检查是否存在 mermaid_filter.lua
+        mermaid_filter = "mermaid_filter.lua"
+        use_mermaid_filter = os.path.exists(mermaid_filter)
+        
+        # 检查是否存在 reference.docx
+        reference_docx = "reference.docx"
+        use_reference_docx = os.path.exists(reference_docx)
+
         if export_type == 'docx':
+            extra_args = [
+                "--highlight-style=pygments",
+                "-f", "markdown+raw_tex+tex_math_dollars+tex_math_double_backslash"
+            ]
+            
+            if use_mermaid_filter:
+                extra_args.insert(0, f"--lua-filter={mermaid_filter}")
+            
+            if use_reference_docx:
+                extra_args.append(f"--reference-doc={reference_docx}")
+
             pypandoc.convert_file(
                 md_path,
                 'docx',
                 outputfile=output_file,
-                extra_args=extra_args_for_docx
+                extra_args=extra_args
             )
-            resp = make_response(
-                send_file(output_file, as_attachment=True, download_name="output.docx")
-            )
+            
+            # 读取文件内容
+            with open(output_file, 'rb') as f:
+                file_data = f.read()
+            
+            resp = make_response(file_data)
             resp.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-
-        elif export_type == 'pdf':
-            pypandoc.convert_file(
-                md_path,
-                'pdf',
-                outputfile=output_file,
-                extra_args=extra_args_for_pdf
-            )
-            resp = make_response(
-                send_file(output_file, as_attachment=True, download_name="output.pdf")
-            )
-            resp.headers['Content-Type'] = 'application/pdf'
+            resp.headers['Content-Disposition'] = f'attachment; filename="markdown_export_{uuid.uuid4().hex[:8]}.docx"'
 
         else:
-            os.remove(md_path)
-            return "未知的导出类型", 400
+            return jsonify({"error": "未知的导出类型"}), 400
 
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": f"转换过程出错: {str(e)}"}), 500
     except Exception as e:
-        os.remove(md_path)
-        if os.path.exists(output_file):
-            os.remove(output_file)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"导出失败: {str(e)}"}), 500
+    
+    finally:
+        # 清理临时文件
+        for file_path in [md_path, output_file]:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                temp_files.discard(file_path)
+            except Exception as e:
+                print(f"清理文件失败 {file_path}: {e}")
+        
+        # 清理临时目录
+        try:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+            temp_dirs.discard(temp_dir)
+        except Exception as e:
+            print(f"清理目录失败 {temp_dir}: {e}")
 
-    os.remove(md_path)
     return resp
 
 if __name__ == '__main__':

@@ -41,6 +41,11 @@ body {
     justify-content: space-between;
 }
 
+.export-btns {
+    display: flex;
+    gap: 1rem;
+}
+
 .btn {
     padding: 0.6rem 1.2rem;
     border: none;
@@ -70,9 +75,14 @@ body {
     color: white;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
     filter: brightness(0.9);
     transform: translateY(-1px);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .editor-container {
@@ -106,6 +116,7 @@ body {
     border-radius: 8px;
     padding: 1rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    overflow-y: auto;
 }
 
 .preview-header {
@@ -115,6 +126,10 @@ body {
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
+}
+
+#preview_content {
+    padding: 1rem;
 }
 
 /* 代码块样式 */
@@ -215,6 +230,155 @@ img {
     font-size: 20px;
     cursor: pointer;
     color: var(--danger-color);
+}
+
+/* Turnstile 隐藏容器 */
+#turnstile_container {
+    position: fixed !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    visibility: hidden !important;
+}
+
+/* 验证蒙版样式 */
+.verification-overlay {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    animation: fadeIn 0.3s;
+    justify-content: center;
+    align-items: center;
+}
+
+.verification-overlay.active {
+    display: flex;
+}
+
+.verification-content {
+    background-color: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    animation: slideIn 0.3s;
+    overflow: hidden;
+}
+
+.verification-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #eee;
+    text-align: center;
+}
+
+.verification-header h3 {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: 1.5rem;
+}
+
+.verification-body {
+    padding: 2rem 1.5rem;
+    text-align: center;
+}
+
+.verification-body p {
+    margin-bottom: 1.5rem;
+    color: #666;
+    font-size: 1rem;
+}
+
+#turnstile_display_area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 65px;
+    margin: 1rem 0;
+}
+
+.verification-status {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 6px;
+    background: #f8f9fa;
+}
+
+.verification-status.success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.verification-status.error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.verification-status.waiting {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-text {
+    font-weight: 500;
+}
+
+/* 加载动画 */
+.loading-overlay {
+    display: none;
+    position: fixed;
+    z-index: 3000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+.loading-overlay p {
+    color: white;
+    margin-top: 1rem;
+    font-size: 16px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 /* 支持开发者容器 */
@@ -356,6 +520,66 @@ img {
     transform: translateY(0);
 }
 
+.friend-links.with-dropdown.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+/* 打印样式 */
+@media print {
+    /* 隐藏不需要打印的元素 */
+    body {
+        background: white;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .header,
+    .controls,
+    #markdown_input,
+    .preview-header,
+    .sponsor-container,
+    .friend-links-container,
+    .error-popup,
+    .verification-overlay,
+    .loading-overlay,
+    .copy-btn {
+        display: none !important;
+    }
+    
+    .container {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .editor-container {
+        display: block;
+        height: auto;
+        grid-template-columns: none;
+    }
+    
+    .preview-area {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+        background: white;
+    }
+    
+    #preview_content {
+        padding: 20px;
+    }
+    
+    /* 确保内容正确分页 */
+    pre, table, img {
+        page-break-inside: avoid;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+    }
+}
+
 /* 移动端适配 */
 @media (max-width: 768px) {
     .container {
@@ -436,6 +660,15 @@ img {
     .menu-item {
         padding: 10px 12px;
         font-size: 14px;
+    }
+    
+    .verification-content {
+        margin: 20% auto;
+        width: 95%;
+    }
+    
+    .verification-body {
+        padding: 1.5rem 1rem;
     }
 }
 
